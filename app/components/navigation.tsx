@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { X, Menu } from "lucide-react";
 
@@ -21,7 +21,7 @@ const nameList: types[] = [
 
 const NavBar: React.FC = () => {
   const [notset, setC] = useState(false);
-  console.log(notset);
+
   return (
     <nav className="bg-gray-900 shadow-xl border-b border-indigo-700/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
