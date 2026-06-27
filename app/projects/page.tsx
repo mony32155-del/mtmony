@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 
 export default function InvoicePage() {
-  // Dependencies refs
-  const html2canvasRef = useRef<any>(null);
-  const html2pdfRef = useRef<any>(null);
+  // Client Execution Ready check
+  const [scriptsLoaded, setScriptsLoaded] = useState(false);
 
   // Form States
   const [invoiceNum, setInvoiceNum] = useState("RAKIBUL-2026-02");
@@ -19,21 +18,34 @@ export default function InvoicePage() {
   // Daily Inputs Quantities state: Keyed by string date "YYYY-MM-DD"
   const [quantities, setQuantities] = useState<Record<string, string>>({});
 
-  // Lazy-load client scripts safely away from SSR
+  // Append external rendering binaries directly to DOM to completely bypass SSR compile pipeline
   useEffect(() => {
-    import("html2canvas" as any).then((mod) => {
-      html2canvasRef.current = mod.default || mod;
-    }).catch(() => {});
-    
-    // @ts-ignore
-    import("html2pdf.js").then((mod) => {
-      html2pdfRef.current = mod.default || mod;
-    }).catch(() => {});
+    if (typeof window === "undefined") return;
+
+    const loadScript = (src: string): Promise<void> => {
+      return new Promise((resolve) => {
+        if (document.querySelector(`script[src="${src}"]`)) {
+          resolve();
+          return;
+        }
+        const script = document.createElement("script");
+        script.src = src;
+        script.async = true;
+        script.onload = () => resolve();
+        document.body.appendChild(script);
+      });
+    };
+
+    Promise.all([
+      loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"),
+      loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js")
+    ]).then(() => {
+      setScriptsLoaded(true);
+    });
   }, []);
 
   const getDaysInMonth = (y: number, m: number) => new Date(y, m + 1, 0).getDate();
 
-  // Compute daily input layout configs
   const startDay = 1;
   const endDay = billingCycle === "1H" ? 15 : getDaysInMonth(invoiceYear, invoiceMonth);
   
@@ -50,14 +62,12 @@ export default function InvoicePage() {
     setQuantities({});
   };
 
-  // Helper date rendering labels
   const currentMonthShort = new Date(invoiceYear, invoiceMonth, 1).toLocaleString("en-US", { month: "short" });
   const lastDayOfCycle = (billingCycle === "1H") ? 15 : getDaysInMonth(invoiceYear, invoiceMonth);
   const invoiceDateString = `${lastDayOfCycle}-${currentMonthShort}-${invoiceYear}`;
   const periodStartString = (billingCycle === "1H") ? `01-${currentMonthShort}-${invoiceYear}` : `16-${currentMonthShort}-${invoiceYear}`;
   const periodEndString = `${lastDayOfCycle}-${currentMonthShort}-${invoiceYear}`;
 
-  // Process data lines
   let totalOrders = 0;
   const activeRows: Array<{ label: string; val: number }> = [];
 
@@ -122,7 +132,8 @@ export default function InvoicePage() {
 
   const downloadImage = (format: "png" | "jpeg") => {
     const target = document.getElementById("invoice-target");
-    if (!target || !html2canvasRef.current) return;
+    const globalHtml2canvas = (window as any).html2canvas;
+    if (!target || !globalHtml2canvas) return;
 
     const options = {
       scale: 3, 
@@ -132,7 +143,7 @@ export default function InvoicePage() {
       backgroundColor: "#FFFFFF"
     };
 
-    html2canvasRef.current(target, options).then((canvas: any) => {
+    globalHtml2canvas(target, options).then((canvas: any) => {
       const link = document.createElement("a");
       link.download = `${invoiceNum || "Invoice"}.${format === "jpeg" ? "jpg" : "png"}`;
       link.href = canvas.toDataURL(`image/${format}`, 0.98);
@@ -142,7 +153,8 @@ export default function InvoicePage() {
 
   const downloadPDF = () => {
     const element = document.getElementById("invoice-target");
-    if (!element || !html2pdfRef.current) return;
+    const globalHtml2pdf = (window as any).html2pdf;
+    if (!element || !globalHtml2pdf) return;
 
     const initialWrapperStyles = element.parentElement?.getAttribute("style") || "";
     const originalTransform = element.style.transform;
@@ -170,7 +182,7 @@ export default function InvoicePage() {
       pagebreak: { mode: ["avoid-all"] }
     };
 
-    html2pdfRef.current().set(opt).from(element).toPdf().get("pdf").then(function(pdf: any) {
+    globalHtml2pdf().set(opt).from(element).toPdf().get("pdf").then(function(pdf: any) {
       const totalPages = pdf.internal.getNumberOfPages();
       if (totalPages > 1) {
         for (let i = totalPages; i > 1; i--) {
@@ -181,7 +193,7 @@ export default function InvoicePage() {
       element.parentElement?.setAttribute("style", initialWrapperStyles);
       element.style.transform = originalTransform;
     }).catch((err: any) => {
-      console.error("PDF generation error bypassed safely:", err);
+      console.error("PDF generation error safely handled:", err);
       element.parentElement?.setAttribute("style", initialWrapperStyles);
       element.style.transform = originalTransform;
     });
@@ -189,12 +201,10 @@ export default function InvoicePage() {
 
   return (
     <>
-      {/* Structural Web Typography Embed Injection */}
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Playfair+Display:ital,wght@1,400;1,600&display=swap" rel="stylesheet" />
 
-      {/* Styled Embed Injection isolating context from global file pollution */}
       <style jsx global>{`
         :root {
             --navy: #1C241E;
@@ -327,7 +337,7 @@ export default function InvoicePage() {
             <div className="form-section">
               <h3>Rates & Quantities</h3>
               <input type="number" id="rate-per-order" step="0.01" value={ratePerOrder} onChange={(e) => setRatePerOrder(parseFloat(e.target.value) || 0)} />
-              <div id="daily-inputs-container" class="daily-inputs-grid">
+              <div id="daily-inputs-container" className="daily-inputs-grid">
                 {dailyDaysArray.map((d) => {
                   const dateStr = `${invoiceYear}-${String(invoiceMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
                   return (
@@ -347,9 +357,9 @@ export default function InvoicePage() {
             </div>
             
             <div className="action-buttons">
-              <button type="button" onClick={() => downloadImage("png")} className="btn btn-primary">PNG</button>
-              <button type="button" onClick={() => downloadImage("jpeg")} className="btn btn-secondary">JPG</button>
-              <button type="button" onClick={downloadPDF} className="btn btn-secondary">PDF</button>
+              <button type="button" disabled={!scriptsLoaded} onClick={() => downloadImage("png")} className="btn btn-primary">PNG</button>
+              <button type="button" disabled={!scriptsLoaded} onClick={() => downloadImage("jpeg")} className="btn btn-secondary">JPG</button>
+              <button type="button" disabled={!scriptsLoaded} onClick={downloadPDF} className="btn btn-secondary">PDF</button>
               <button type="button" onClick={clearQuantities} className="btn btn-clear">Clear</button>
             </div>
           </form>
