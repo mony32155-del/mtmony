@@ -12,7 +12,7 @@ export default function Home() {
       </p>
       <div className="flex justify-center mt-8">
         <Link
-          href="/dashboard"
+          href="https://rawcdn.githack.com/mony32155-del/Invoice/refs/heads/main/Invoice.html?token=GHSAT0AAAAAAEBCX4W4QXVIYEYFMVWXTSBG2R7PNBA"
           className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-lg text-lg font-semibold transition duration-200 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 focus:ring-offset-gray-900"
         >
           Go to Dashboard
